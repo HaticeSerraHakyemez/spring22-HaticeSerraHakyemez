@@ -3,4 +3,4 @@
 ### Homework 1
 ### Homework 2
 
-[Link](https://moodle.boun.edu.tr/login/login/)
+[Link](https://moodle.boun.edu.tr/login/login.php)
