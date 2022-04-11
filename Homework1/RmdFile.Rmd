@@ -286,7 +286,7 @@ Data sets obtained from [EVDS](https://evds2.tcmb.gov.tr/) and [Google Trends](h
 
 # 6. Appendices 
 
-[Rmd File](https://bu-ie-360.github.io/spring22-HaticeSerraHakyemez/Homework1/Hw1(Rmd).Rmd) 
+[Rmd File](https://BU-IE-360.github.io/spring22-HaticeSerraHakyemez/Homework1/RmdFile.Rmd) 
 
 
 
