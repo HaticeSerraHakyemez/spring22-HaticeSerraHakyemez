@@ -288,6 +288,8 @@ Data sets obtained from [EVDS](https://evds2.tcmb.gov.tr/) and [Google Trends](h
 
 [Rmd File](https://BU-IE-360.github.io/spring22-HaticeSerraHakyemez/Homework1/RmdFile.Rmd) 
 
+Data can be seen [Here](https://github.com/BU-IE-360/spring22-HaticeSerraHakyemez/tree/gh-pages/Homework1/Data)
+
 
 
 
