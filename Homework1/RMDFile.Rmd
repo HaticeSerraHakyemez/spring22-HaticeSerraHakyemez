@@ -1,0 +1,301 @@
+---
+title: "IE360 Homework1"
+author: "Hatice Serra Hakyemez"
+date: "11/04/2022"
+output: html_document
+---
+
+```{r libraries,message=FALSE,warning=FALSE}
+require(zoo)
+require(lubridate)
+require(openxlsx)
+require(ggplot2)
+require(data.table)
+require(skimr)
+require(GGally)
+require(ggcorrplot)
+require(gridExtra) 
+
+
+data_path="C:/Users/user/Desktop/Data/TotalLoans.xlsx"
+loans=read.xlsx(data_path,sheet='EVDS',rows=1:61)
+
+data_path="C:/Users/user/Desktop/Data/ConsumerPriceIndex.xlsx"
+cpi=read.xlsx(data_path,sheet='EVDS',rows=1:61)
+
+data_path="C:/Users/user/Desktop/Data/ExchangeRates.xlsx"
+exchange=read.xlsx(data_path,sheet='EVDS',rows=1:61)
+
+exhcange=data.table(exchange)
+setnames(exchange,"TP.DK.USD.S.YTL","USD")
+
+cpi=data.table(cpi)
+setnames(cpi,"TP.FG.J0","General")
+setnames(cpi,"TP.TUFE1YI.T1","PPI")
+setnames(cpi,"TP.FG.J07","Transport")
+
+loans=data.table(loans)
+setnames(loans,"TP.KREDI.L013(100th)","Commercial")
+setnames(loans,"TP.TUKKRE.K001(100th)","Consumer")
+loans[,"TP.KREDI.L013":=NULL]
+loans[,"TP.TUKKRE.K001":=NULL]
+
+analysis=NULL
+analysis=merge(cpi,loans,key="Date")
+analysis=merge(analysis,exchange,key="Date")
+analysis[,Date:=as.yearmon(ym(Date))]
+
+```
+
+# 1. Introduction
+
+|   Economic variables are used to measure the state and changes of a country's economic characteristics. Various significant decisions can be made using these variables, thus it's important to study them carefully. There can be correlation between different economic variables, and they usually show some pattern over time. Therefore studying these variables is an excellent way to learn more about time series and understand how real life trends and dependencies work.
+  
+|   In this study, several economic variables and their relationships are analyzed, in order to draw conclusions about the question: "What is the relationship between price indices, exchange rates and bank loan amounts in the economy of Turkey over the years 2017-2021?". Economy of Turkey has been unstable over the last few years, with frequent increase in prices of products and services resulting from inflation and falling value of the currency, buying cars, technological devices, furniture, making investments and many processes of purchase became increasingly more difficult. Hence, it is interesting to investigate the change in bank loan amounts over these years. For this purpose, data provided by [Central Bank of the Republic of Turkey](https://evds2.tcmb.gov.tr/) and [Google Trends](https://trends.google.com/trends/?geo=TR) is used. Data obtained is sampled at monthly level and each has a period length of five years. Economic variables initially considered are: USD-TRY Exchange Rate, General Price Index, Producer Price Index, Transport Price Index, Commercial Loan Amount, Consumer Loan Amount. After making general observations, three of these variables are selected to continue with the analysis. Since loan amounts are on a very large scale, corresponding data are used in terms of a hundred thousand TRY. After visualization of data, selecting three variables, making comparison between these variables and among each one year by year, inspecting variability and correlation; search trend data obtained is used to make some further comments. Finally, considering the results of the analysis, conclusions about the question stated above are listed.
+
+# 2. Visualization of Data
+## a. Time Series Plots
+
+
+```{r message=FALSE,warning=FALSE}
+ggplot(analysis, aes(x=Date,y=USD))+geom_line(color="red")+labs(x="Date",
+y="USD Exchange Rate",title="USD-TRY Exchange Rate",subtitle = "Over years 2017-2021")
+ggp1<-ggplot(analysis, aes(x=Date,y=General))+geom_line(color="red")+labs(x="Date",
+y="General Price Index",title="General Price Index",subtitle = "Over years 2017-2021")
+ggp2<-ggplot(analysis, aes(x=Date,y=PPI))+geom_line(color="red")+labs(x="Date",
+y="PPI",title="Producer Price Index",subtitle = "Over years 2017-2021")
+ggp3<-ggplot(analysis, aes(x=Date,y=Transport))+geom_line(color="red")+labs(x="Date",
+y="Transport Price Index",title="Transport Price Index",subtitle = "Over years 2017-2021")
+grid.arrange(ggp1,ggp2,ggp3,ncol=2,nrow=2)
+ggp1<-ggplot(analysis, aes(x=Date,y=Commercial))+geom_line(color="red")+labs(x="Date",
+y="Commercial Loans (100k TRY)",title="Commercial Loan Amount",subtitle = "Over years 2017-2021")
+ggp2<-ggplot(analysis, aes(x=Date,y=Consumer))+geom_line(color="red")+labs(x="Date",
+y="Consumer Loans (100k TRY)",title="Consumer Loan Amount",subtitle = "Over years 2017-2021")
+grid.arrange(ggp1,ggp2,ncol=2)
+```
+
+
+|   It can be seen from these graphs that almost all of the variables showed an increasing trend over the years between 2017 and 2021. While price indices follow an approximately linear line of growth, exchange rate seems more variable. Loan amounts generally increased over the years, but there is a fall on the second half of the year 2018. Other than that, loan amount change rate is variable and not linear. Furthermore, all data show a very steep increase at the end of year 2021.
+
+
+## b. Selecting Data
+
+```{r select,message=FALSE,warning=FALSE}
+ggplot(analysis ,aes(x=Date)) +
+  geom_line(aes(y=General,color="General")) +
+  geom_line(aes(y=PPI,color="PPI")) +
+  geom_line(aes(y=Transport,color='Transport'))+
+  ggtitle("Price Indices Comparison",subtitle = "Over years 2017-2021")+xlab("Date")+ylab("Price Index")
+
+ggplot(analysis ,aes(x=Date)) +
+  geom_line(aes(y=Commercial,color='Commercial')) +
+  geom_line(aes(y=Consumer,color='Consumer'))+
+ ggtitle("Loan Amount Comparison",subtitle = "Over years 2017-2021")+xlab("Date")+ylab("Total Loan (100k TRY)")
+
+
+correl_info=cor(analysis[,-1])
+ggcorrplot(correl_info, 
+           hc.order = TRUE, 
+           type = "lower",
+           lab = TRUE)+
+  ggtitle("Correlation Between Variables")
+
+```
+
+
+|   It can be seen from the price index comparison graph that, over the years all three price indices showed a very similar pattern of growth. Since general price index consists of a wider range of products and services, it is sufficient enough to use this variable in the further analysis.
+   
+|   Looking at the loan amount comparison graph, one can say there is a similar trend. Correlation between two different loan amount variable is almost equal to 1, so it's reasonable to use only one of them in the further analysis. Since consumer loans may represent the general change in the living standarts of the public better, this variable is chosen.
+   
+   Overall, all variables are highly correlated to each other with a positive correlation value.
+   
+# 3. Analysis
+## a. Distributions and Variability Over The Years 
+
+``` {r S,message=FALSE,warning=FALSE}
+veri=analysis[,c(1,2,6,7)]
+ggplot(veri,aes(x=USD)) + geom_density(fill="chocolate1") +labs(x="Exchange Rate",
+y="Density",title="USD-TRY Exchange Rate Density",subtitle = "Over years 2017-2021")+ facet_wrap(~year(Date))
+ggplot(veri,aes(x=General)) + geom_density(fill="cyan3") +labs(x="Price Index",
+y="Density",title="General Price Index Density",subtitle = "Over years 2017-2021")+ facet_wrap(~year(Date))
+ggplot(veri,aes(x=Consumer)) + geom_density(fill="chartreuse3") +labs(x="Consumer Loan",
+y="Density",title="Consumer Loan Density",subtitle = "Over years 2017-2021") + facet_wrap(~year(Date))
+```
+
+
+|   Firstly, it can be said that exchange rate and price index density graphs are similar over the years, especially in 2017 and 2018. Both variables have relatively larger variance in years 2018, 2020 and mostly in 2021. Loan density graphs are also similar to the other two, but not as much. Moreover, loan amount has least variability in 2018 and most in 2020. For the most part, density graphs are not normally distributed.
+
+
+``` {r A,message=FALSE,warning=FALSE}
+var1=0;var2=0;var3=0;
+for(i in 1:5){
+  var1[i]=var(veri$USD[i*(1:12)])
+  var2[i]=var(veri$General[i*(1:12)])
+  var3[i]=var(veri$Consumer[i*(1:12)])
+}
+
+ggplot(veri,aes(x=USD)) + geom_density(fill="chocolate1")+labs(x="USD Exchange Rate",
+y="Density",title="Density Graph of USD Exchange Rate",subtitle = "Over years 2017-2021")
+paste("Mean USD exchange rate: ",mean(veri$USD))
+paste("Variance of USD exchange rate: ",var(veri$USD))
+plot(y=var1,x=1:5,ylab="Variance",xlab="Year Index",main = "Variance of Exchange Rate Over The Years",type="l",col="chocolate1")
+```
+
+
+|   Distribution of USD exchange rate is not symmetrical and right-skewed. As already observed before, variance increased over the years.
+
+
+``` {r B,message=FALSE,warning=FALSE}
+ggplot(veri,aes(x=General)) + geom_density(fill="cyan3")+labs(x="General Price Index",
+y="Density",title="Density Graph of General Price Index",subtitle = "Over years 2017-2021")
+paste("Mean general price index: ",mean(veri$General))
+paste("Variance of general price index: ",var(veri$General))
+plot(y=var2,x=1:5,ylab="Variance",xlab="Year Index",main = "Variance of Price Index Over The Years",type="l",col="cyan3")
+```
+
+
+|   Distribution of general price index is very similar to the distribution of exchange rate, it's variance also increased over years.
+
+
+``` {r C,message=FALSE,warning=FALSE}
+ggplot(veri,aes(x=Consumer)) + geom_density(fill="chartreuse3")+labs(x="Consumer Loan Amount",
+y="Density",title="Density Graph of Consumer Loan Amount",subtitle = "Over years 2017-2021")
+paste("Mean consumer loan amount (100k TRY): ",mean(veri$Consumer)) 
+paste("Variance of consumer loan amount: ",var(veri$Consumer))
+plot(y=var3,x=1:5,ylab="Variance",xlab="Year Index",main = "Variance of Loan Amount Over The Years",type="l",col="chartreuse3")
+```
+
+
+|   Distribution of consumer loan amount is not close to normal, it has high density in both smaller and larger values of loan. Unlike the first two variables studied above, variance of loan amount increased only after 2019.
+
+## b. Correlation
+
+``` {r D,message=FALSE,warning=FALSE}
+ggpairs(veri[,-1])+ggtitle("Pairs Correlation of The Data")
+```
+
+
+|   Combining the results of the previous graphs, the values of correlation and scatter plots shown above, it's seen that there is a very strong positive relationship between exchange rate and price index. Moreover, correlation between these two variables and consumer loan amount is significantly high. It may be the case that there are other important variables affecting the loan amount.
+
+## c. Comparison
+
+```{r y,message=FALSE,warning=FALSE}
+GeneralN=(veri$General-min(veri$General))/(max(veri$General)-min(veri$General))
+USDN=(veri$USD-min(veri$USD))/(max(veri$USD)-min(veri$USD))
+ConsumerN=(veri$Consumer-min(veri$Consumer))/(max(veri$Consumer)-min(veri$Consumer))
+
+ggplot(veri ,aes(x=Date)) +
+  geom_line(aes(y=GeneralN,color="General")) +
+  geom_line(aes(y=USDN,color="USD")) +
+  geom_line(aes(y=ConsumerN,color='Consumer'))+labs(x="Date",y="Normalized Data",
+title="Normalized Price Index, Exchange Rate, Loan Amount",subtitle="Over Years 2017-2021")
+
+ggplot(veri) + geom_density(aes(x=GeneralN),color="blue")+ geom_density(aes(x=USDN),color="red")+ geom_density(aes(x=ConsumerN),color="green")+labs(x="Normalized Data",y="Density",
+title="Densities of Price Index, Exchange Rate, Loan Amount",subtitle="Over Years 2017-2021")
+
+```
+
+
+|   Results of the comparison between normalized values of the data agree well with the previous comments. Additionally, the increase of value at the second half of year 2021 is the steepest for exchange rate. Reduction in the second half of year 2018 is seen in all variables, although it's the least for price index. After this reduction, loan amount is the last to follow on the next growth but it's the steepest between second half of 2019 and second half of 2020. Overall, general price index increased mostly in a linear manner; USD exchange rate increased with a zigzagged pattern within each year; consumer loan amount increased with a brief period of reduction over the years.
+
+
+## d. Search Trends
+
+```{r search, echo=FALSE,message=FALSE,warning=FALSE}
+data_path="C:/Users/user/Desktop/Data/dolar.csv"
+dolar <- read.csv(data_path,skip=2)
+dolar=data.table(dolar)
+dolar[,"Date":=veri$Date]
+dolar[,Ay:=NULL]
+dolar[,"Search":=dolar]
+dolar[,dolar:=NULL]
+
+data_path="C:/Users/user/Desktop/Data/enflasyon.csv"
+enflasyon <- read.csv(data_path,skip=2)
+enflasyon=data.table(enflasyon)
+enflasyon[,"Date":=veri$Date]
+enflasyon[,Ay:=NULL]
+enflasyon[,"Search":=enflasyon]
+enflasyon[,enflasyon:=NULL]
+
+data_path="C:/Users/user/Desktop/Data/kredi.csv"
+kredi <- read.csv(data_path,skip=2)
+kredi=data.table(kredi)
+kredi[,"Date":=veri$Date]
+kredi[,Ay:=NULL]
+kredi[,"Search":=kredi]
+kredi[,kredi:=NULL]
+```
+
+```{r sel,message=FALSE,warning=FALSE}
+dolarN=(dolar$Search-min(dolar$Search))/(max(dolar$Search)-min(dolar$Search))
+enflasyonN=(enflasyon$Search-min(enflasyon$Search))/(max(enflasyon$Search)-min(enflasyon$Search))
+krediN=(kredi$Search-min(kredi$Search))/(max(kredi$Search)-min(kredi$Search))
+ggplot(veri ,aes(x=Date))+
+  geom_line(aes(y=USDN,color="USD")) +
+  geom_line(aes(y=dolarN,color="dolar")) +
+  ggtitle("Comparison of Search Records and USD Exchange Rate",subtitle = "Over years 2017-2021")+xlab("Date")+ylab("Normalized Data")
+ggplot(veri ,aes(x=Date))+
+  geom_line(aes(y=GeneralN,color="General")) +
+  geom_line(aes(y=enflasyonN,color="enflasyon")) +
+  ggtitle("Comparison of Search Records and General Price Index",subtitle = "Over years 2017-2021")+xlab("Date")+ylab("Normalized Data")
+ggplot(veri ,aes(x=Date))+
+  geom_line(aes(y=ConsumerN,color="Consumer")) +
+  geom_line(aes(y=krediN,color="kredi")) +
+  ggtitle("Comparison of Search Records and Consumer Loan Amount",subtitle = "Over years 2017-2021")+xlab("Date")+ylab("Normalized Data")
+
+paste("Correlation between search records and data:")
+paste("For Exchange Rate: ",cor(veri$USD,dolar$Search))
+paste("For Price Index: ",cor(veri$General,enflasyon$Search))
+paste("For Loan Amount: ",cor(veri$Consumer,kredi$Search))
+```
+
+
+|   For further analysis, search amount of related words with the data used in the study is obtained. For better comparison, normalized data is used. It can be stated that the change of USD exchange rate and search amount for the word "dolar" closely follow each other. Search amount for the word "enflasyon", meaning inflation, increased over the years, but it's not so highly correlated with it's corresponding variable as in the case with exchange rate. Also, search amount of this word shows a very obvious pattern within years: while the search amount decreases in first and third quarter, it increases in the second and forth quarter. This may mostly be related to how economical policies related to price indices are carried out. Even though the price increases almost continuously, price changes are not reflected in this manner. Word "kredi", meaning credit, although somewhat follows the loan amount graph till 2020, later it shows a very different path and these two data are not much related.   
+
+
+```{r boxplot,message=FALSE,warning=FALSE}
+ggplot(dolar,aes(x=factor(year(Date)),y=Search,fill=factor(year(Date)))) + geom_boxplot()+labs(x="Year",y="Search Amount",
+title="Boxplots of Search Amount of The Word \"dolar\" ",subtitle="Over the Years 2017-2021")
+ggplot(enflasyon,aes(x=factor(year(Date)),y=Search,fill=factor(year(Date)))) + geom_boxplot()+labs(x="Year",y="Search Amount",
+title="Boxplots of Search Amount of The Word \"enflasyon\" ",subtitle="Over the Years 2017-2021") 
+ggplot(kredi,aes(x=factor(year(Date)),y=Search,fill=factor(year(Date)))) + geom_boxplot() +labs(x="Year",y="Search Amount",
+title="Boxplots of Search Amount of The Word \"kredi\" ",subtitle="Over the Years 2017-2021")
+```
+
+|   Lastly, it can be seen that search amount for "dolar" doesn't have high variability within years, and it's mean increases over time. Search amount of the word "enflasyon" also increases from 2017 to 2021, moreover it shows high variance within year 2018. Search amount of "kredi" is variable between years, and surprisingly it has the lowest mean in year 2021 when loan amount was at its highest.
+
+# 4. Conclusion 
+
+Considering all of the analysis done above, it can be concluded that:
+
+- There is a positive correlation between exchange rate, price index and consumer loan amount. Correlation value between the variables is highly significant. Especially the correlation between exchange rate and price index is the highest.
+
+- All three variable means generally increased over the years 2017-2021. But, this growth  was interrupted between the second half of 2018 and second half of 2019, especially for consumer loans and USD exchange rate.  
+
+- Variability of all variables is at it's highest in 2021, which also displays the increasing instability in the economy.
+
+- Consumer loan amount may be affected by some other variables, therefore further analysis on it's relationship with other factors would be helpful.
+
+-  Growth of all the variables after the second half of 2019 is mostly due to the effects of Covid and economic decisions made by the state. However, further investigation on the cause of reduction after the second half of 2018 may be needed. One of the reasons for decreasing consumer loan amount may be the huge increase in interest rate for bank loans.
+
+
+# 5. References
+
+Data sets obtained from [EVDS](https://evds2.tcmb.gov.tr/) and [Google Trends](https://trends.google.com/trends/?geo=TR)
+
+# 6. Appendices 
+
+[Rmd File](https://BU-IE-360.github.io/spring22-HaticeSerraHakyemez/Homework1/RMDFile.Rmd) 
+
+
+
+
+
+
+
+
+
+
+
+
