@@ -1,0 +1,205 @@
+---
+title: "IE360 Homework2"
+author: "Hatice Serra Hakyemez"
+date: "10/05/2022"
+output: html_document
+---
+
+```{r libraries,message=FALSE,warning=FALSE}
+require(zoo)
+require(lubridate)
+require(openxlsx)
+require(ggplot2)
+require(data.table)
+require(skimr)
+require(GGally)
+require(ggcorrplot)
+require(gridExtra) 
+require(forecast) 
+require(fpp2) 
+
+
+data_path="C:/Users/user/Desktop/hw2/DataFile.csv"
+saleData=read.csv(data_path)
+saleData=data.table(saleData)
+colnames(saleData)=c("Quarter","UGS","RNUV","NPLG","PU","PG","NUGV","NDGV","GNPA","GNPC","GNP")
+saleData[,UGS:=as.numeric(gsub(" ","",UGS))];saleData[,NPLG:=as.numeric(gsub(" ","",NPLG))];
+saleData[,NUGV:=as.numeric(gsub(" ","",NUGV))];saleData[,GNPA:=as.numeric(gsub(" ","",GNPA))];
+saleData[,GNPC:=as.numeric(gsub(" ","",GNPC))];saleData[,GNP:=as.numeric(gsub(" ","",GNP))];
+saleData[,Quarter:=as.yearqtr(Quarter,format="%Y _Q %q")];
+```
+
+# 1. Introduction
+
+|   In this study, [data]() on quarterly gasoline sales and it's relationship between various variables between years 2000 and 2006 is investigated. Purpose is to make predictions for each quarter of the year 2007. In order to do that, firstly visualizations about the target variable, unleaded gasoline sale(UGS), are made. Secondly, given data is analyzed and an adequate time series regression regarding the target variable is prepared. Lastly, predictions based on this model is made. Given data contains (quarterly) index indicating the rate of new unleaded gasoline using vehicles being added to the traffic(RNUV), average price of a liter of unleaded gasoline(PU), average price of a liter of diesel gasoline(PG), number of unleaded gasoline using vehicles in the traffic(NUGV), number of diesel gasoline using vehicles in the traffic per 1000 people(NDGV), number of LPG using vehicles in the traffic(NPLG), agriculture component of Gross National Product(GNPA), commerce component of Gross National Product(GNPC), grand total for GNP(GNP). Furthermore, lagged UGS values are utilized/considered when building the model for the future predictions.
+|   Overall, this project is helpful for getting more insights about time series regression and modeling.  
+  
+
+# 2. Analysis 
+## a. Visualization of Data
+
+
+```{r message=FALSE,warning=FALSE}
+UGSts <- ts(saleData$UGS[1:28], freq=4, start=c(2000,1),end=c(2006,4))
+ts.plot(UGSts,xlab = "Year", ylab = "UGS",main="Time Series of UGS Values (2000-2006)")
+acf(saleData$UGS[1:28])
+```
+
+|   From the time series plot of UGS values, it can be seen that gasoline sales are not stationary over the years(or over the quarters within the years). There seems to be a declining trend along with a seasonality component. It can be seen that the 3rd quarter has the highest value within a year, and the values show a zigzagged pattern. Over the years, mean of the gasoline sales is not constant, and variance seems to be changing along the way. Therefore taking the logarithm of the UGS values when making a regression model might be more logical.
+
+|   Moreover, from the autocorrelation function plot, it is seen that lag 1 and lag 4 values are beyond to control limits. But mostly the sale values at lag=4 seems pose an autocorrelation. This can be considered when building the model.
+
+
+
+```{r message=FALSE,warning=FALSE}
+saleData[,lag1:=c(NA,lag(UGSts,1),rep(NA,3))]
+saleData[,lag4:=c(rep(NA,4),lag(UGSts,4))]
+timeSeries<-ts(saleData[,c(2,3,4,5,6,7,8,9,10,11,12,13)],frequency=4,start=c(2000,1))
+plot(timeSeries[,1:6],main="Time Series",xlab="Year")
+plot(timeSeries[,7:12],main="Time Series",xlab="Year")
+ggpairs(saleData[,-1])
+```
+|   Looking at the time series plots, it can be argued that most of these data have a trend or a seasonality component. For example, GNPA, GNPC, and GNP have very apparent seasonality component; NPLG, NUGV and NDGV show a trend; RNUV, PU and PG have non-stationary variance. While constructing the regression model, it can be better take the logarithms of RNUV, NPLG, PU, PG and maybe NDGV.
+
+|   Additionally, NUGV, GNPA, NPLG, NDGV, PG and PU variables show significant correlation with the target variable UGS. Since the correlation between NUGV and NPLG, NDGV is high; and since NUGV is more related to UGS, other two is not considered. Similarly, between PG and PU, PG is discarded. Therefore, NUGV, GNPA, PU and lag4 variables will be considered firstly.  
+
+
+```{r message=FALSE,warning=FALSE,include=TRUE}
+saleData[,trnd:=1:.N]
+saleData[,qrtr:=quarter(Quarter)]
+saleData[,yr:=year(Quarter)]
+```
+
+|   With the above code, trend and seasonality can now be added to the regression model if needed.
+
+## c. Time Series Regression
+
+```{r message=FALSE,warning=FALSE}
+modelBase=lm(log(UGS)~trnd+as.factor(qrtr),saleData)
+summary(modelBase)
+```
+|   As a first attempt, a regression model with trnd and qrtr variables is made. With these, trend and seasonality is mostly modeled. Other variables can be added to increase the adjusted R-squared value, and to make a better model.
+
+```{r message=FALSE,warning=FALSE}
+modelBase=lm(log(UGS)~trnd+as.factor(qrtr)+log(PU),saleData)
+summary(modelBase)
+```
+|   With the additional PU factor, adjusted R-squared value increased. In the next step, we can replace trnd with NUGV(because NUGV is almost linear), and add some other variables also. 
+
+
+
+```{r message=FALSE,warning=FALSE}
+checkresiduals(modelBase)
+```
+
+|     Although the Breusch-Godfrey test did not fail, mean of residuals is below 0 and they don't look random.
+
+
+
+```{r message=FALSE,warning=FALSE}
+modelBase=lm(log(UGS)~trnd+as.factor(qrtr)+log(lag4)+log(PG)+NUGV+GNPA,saleData)
+summary(modelBase)
+```
+|   Adding lag4 variable seems to make the model worse(significance of variables dropped), so we can remove it and try again.
+
+```{r message=FALSE,warning=FALSE}
+modelBase=lm(log(UGS)~as.factor(qrtr)+log(PU)+NUGV+log(NDGV),saleData)
+summary(modelBase)
+```
+
+|   Additional variables increased the adjusted R-squared value, and it seems that they are significantly important to the model, because t-value of all variables are small enough.
+
+
+
+```{r message=FALSE,warning=FALSE}
+checkresiduals(modelBase)
+```
+
+
+|   There also doesn't seem to be a problem with the residuals. They mostly satisfy the normality assumption. Autocorrelation function is okay, residuals look random with approximately 0 mean. So, we'll be using this as our final model.
+
+
+# 3. Final Model
+## a. Visualization and Residuals
+
+```{r message=FALSE,warning=FALSE}
+predictions=exp(predict(modelBase, saleData))
+saleData[,predictions:=predictions]
+saleData[,residuals:=UGS-predictions]
+
+ggplot(saleData[1:28])+
+  geom_point(aes(x=predictions,y=residuals))+
+  labs(x="Predicted UGS Values",y="Residuals", title="Residuals / Predicted Values")
+```
+```{r message=FALSE,warning=FALSE}
+ggplot(saleData[1:28])+
+  geom_point(aes(x=PU,y=residuals))+
+  labs(x="PU Values",y="Residuals", title="Residuals / PU Values")
+```
+```{r message=FALSE,warning=FALSE}
+ggplot(saleData[1:28])+
+  geom_point(aes(x=NUGV,y=residuals))+
+  labs(x="NUGV Values",y="Residuals", title="Residuals / NUGV Values")
+```
+
+```{r message=FALSE,warning=FALSE}
+ggplot(saleData[1:28])+
+  geom_point(aes(x=NDGV,y=residuals))+
+  labs(x="NDGV Values",y="Residuals", title="Residuals / NDGV Values")
+```
+
+|   Overall, it can be seen that residuals are mostly random with mean zero and constant variance with respect to changing values of PU, NUGV, NDGV and predicted UGS. Therefore, no important problem with residuals exists.
+
+
+```{r message=FALSE,warning=FALSE}
+ggplot(saleData[1:28])+
+  geom_point(aes(x=predictions,y=UGS))+
+  geom_abline(slope=1,color="blue")+
+  labs(x="Predicted UGS Values",y="Actual UGS Values", title="Actual UGS / Predicted Values")
+```
+
+|   From the above plot, we can see that the quantile-quantile plot of our predictions pose no apparent problem. Predictions are very close to the actual values.
+
+## b. Predictions
+
+```{r message=FALSE,warning=FALSE}
+ggplot(saleData[29:32])+
+  geom_line(aes(x=Quarter,y=predictions))+
+  labs(x="Year",y="Predicted UGS Values", title="UGS Predictions")
+
+ggplot(saleData)+
+  geom_line(aes(x=Quarter,y=predictions),color="blue")+
+  geom_line(aes(x=Quarter,y=UGS),color="red")+
+  labs(x="Year",y="UGS Values", title="Actual UGS and Predicted Values")
+
+cat(paste(" 2007 Q1:",saleData$predictions[29],"\n","2007 Q2:",saleData$predictions[30],"\n","2007 Q3:",saleData$predictions[31],
+  "\n","2007 Q4:",saleData$predictions[32]))
+```
+
+|   The second plot is basically a confirmation for the above statement that the predictions are good enough. Moreover, predicted UGS values of UGS for each quarter of the year 2007 can be seen in the graphs and also the values are noted down. As it can be seen, in the last year, trend of the time series continues and seasonality affect is the same as before.
+
+
+# 4. Conclusion 
+
+|   There are several variables having high correlation with the target variable UGS, but when constructing the time series regression model for the predictions, most of them didn't fit well with each other. Therefore, PU, NUGV, NDGV and quarter factor were used in the final model.
+|   From the model constructed with these variables, predictions for the UGS values were obtained. And as it was reported, residuals mostly did not violate the assumptions of zero mean, constant variance, normality, randomness and independence. Furthermore, comparison between actual values of UGS and predicted values showed that the model is fitting. Other than that, predictions for the next year are calculated by using the corresponding values from year 2007 of the variables used in the model.
+
+# 5. Appendices 
+
+
+[Data File](https://BU-IE-360.github.io/spring22-HaticeSerraHakyemez/Homework2/DataFile.Rmd) 
+
+
+[Rmd File](https://BU-IE-360.github.io/spring22-HaticeSerraHakyemez/Homework2/RMDFile.Rmd) 
+
+
+
+
+
+
+
+
+
+
+
+
